@@ -21,7 +21,7 @@ export default async function DashboardLayout({
                   <Mosque className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div>
-                  <span className="block font-bold text-lg leading-5 text-emerald-900">SGR Masjid</span>
+                  <span className="block font-bold text-lg leading-5 text-emerald-900">Nurul Ittihad Sepakat</span>
                   <span className="hidden text-xs text-emerald-700 sm:block">Gotong Royong</span>
                 </div>
               </div>

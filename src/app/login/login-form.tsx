@@ -56,7 +56,7 @@ export default function LoginForm() {
                 </div>
                 <div>
                   <p className="text-sm font-medium uppercase tracking-[0.22em] text-amber-200">
-                    SGR Masjid
+                    Nurul Ittihad Sepakat
                   </p>
                   <p className="text-sm text-emerald-100">Sistem Gotong Royong</p>
                 </div>
@@ -93,7 +93,7 @@ export default function LoginForm() {
                   <Mosque className="h-6 w-6" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-emerald-900">SGR Masjid</p>
+                  <p className="text-sm font-semibold text-emerald-900">Nurul Ittihad Sepakat</p>
                   <p className="text-xs text-slate-500">Sistem Gotong Royong</p>
                 </div>
               </div>
