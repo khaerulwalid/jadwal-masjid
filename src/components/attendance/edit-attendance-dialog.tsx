@@ -3,6 +3,21 @@
 import { useState, useTransition } from "react";
 import { updateAttendanceAction } from "@/actions/attendance.actions";
 import { AttendanceItem } from "./attendance-list";
+import { ClipboardEdit, X, Loader2 } from "lucide-react";
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Belum Dicatat",
+  present: "Hadir",
+  paid: "Bayar Pengganti",
+  absent: "Tidak Hadir",
+};
+
+const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  pending: { bg: "#fef9c3", color: "#854d0e" },
+  present: { bg: "#dcfce7", color: "#166534" },
+  paid: { bg: "#cffafe", color: "#0e7490" },
+  absent: { bg: "#fee2e2", color: "#991b1b" },
+};
 
 export default function EditAttendanceDialog({
   scheduleId,
@@ -17,7 +32,9 @@ export default function EditAttendanceDialog({
 }) {
   const [status, setStatus] = useState(attendance.status);
   const [amount, setAmount] = useState(attendance.paymentAmount || defaultAmount.toString());
-  const [date, setDate] = useState(attendance.paymentDate || new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Makassar" }));
+  const [date, setDate] = useState(
+    attendance.paymentDate || new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Makassar" })
+  );
   const [notes, setNotes] = useState(attendance.notes || "");
   const [isPending, startTransition] = useTransition();
 
@@ -26,7 +43,7 @@ export default function EditAttendanceDialog({
       const formData = new FormData();
       formData.append("attendanceId", attendance.id);
       formData.append("status", status);
-      
+
       if (status === "paid") {
         const numAmount = parseInt(amount, 10);
         if (isNaN(numAmount) || numAmount <= 0) {
@@ -40,7 +57,7 @@ export default function EditAttendanceDialog({
         formData.append("paymentAmount", numAmount.toString());
         formData.append("paymentDate", date);
       }
-      
+
       if (notes) formData.append("notes", notes);
 
       const result = await updateAttendanceAction(scheduleId, formData);
@@ -52,97 +69,165 @@ export default function EditAttendanceDialog({
     });
   };
 
+  const badgeStyle = STATUS_COLORS[status] || STATUS_COLORS.pending;
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={!isPending ? onClose : undefined} aria-hidden="true"></div>
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
-              Ubah Status Kehadiran
-            </h3>
-            
-            <p className="text-sm text-gray-500 mb-4">
-              Masyarakat: <span className="font-semibold text-gray-900">{attendance.resident.name}</span>
-            </p>
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* Backdrop */}
+      <div
+        style={{ position: "fixed", inset: 0, backgroundColor: "rgba(15, 23, 42, 0.5)" }}
+        onClick={!isPending ? onClose : undefined}
+        aria-hidden="true"
+      />
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                >
-                  <option value="pending">Belum Dicatat</option>
-                  <option value="present">Hadir</option>
-                  <option value="paid">Bayar</option>
-                  <option value="absent">Tidak Hadir</option>
-                </select>
-              </div>
-
-              {status === "paid" && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nominal *</label>
-                    <div className="relative rounded-md shadow-sm">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500 sm:text-sm">Rp</span>
-                      </div>
-                      <input
-                        type="number"
-                        min="1"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md py-2 border"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Bayar *</label>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    />
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Catatan</label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Opsional"
-                  maxLength={1000}
-                />
-              </div>
+      {/* Dialog Panel */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 10,
+          backgroundColor: "#ffffff",
+          borderRadius: "0.875rem",
+          boxShadow: "0 25px 60px rgba(0,0,0,0.25)",
+          width: "100%",
+          maxWidth: "480px",
+          margin: "1rem",
+          overflow: "hidden",
+          border: "1px solid #e2e8f0",
+        }}
+      >
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg, #065f46, #047857)", padding: "1.5rem", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "50%", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ClipboardEdit style={{ color: "#ffffff", width: "20px", height: "20px" }} />
+            </div>
+            <div>
+              <h3 style={{ color: "#ffffff", fontSize: "1.125rem", fontWeight: 700, margin: 0, lineHeight: 1.3 }}>
+                Ubah Status Kehadiran
+              </h3>
+              <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "0.8125rem", margin: "0.2rem 0 0 0" }}>
+                {attendance.resident.name}
+              </p>
             </div>
           </div>
-          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isPending}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-            >
-              {isPending ? "Menyimpan..." : "Simpan Perubahan"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isPending}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-            >
-              Batal
-            </button>
+          <button
+            onClick={!isPending ? onClose : undefined}
+            style={{ backgroundColor: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#ffffff" }}
+          >
+            <X style={{ width: "16px", height: "16px" }} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          {/* Status selector */}
+          <div>
+            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.5rem" }}>
+              Status Kehadiran
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+              {Object.entries(STATUS_LABELS).map(([val, label]) => {
+                const isSelected = status === val;
+                const colors = STATUS_COLORS[val];
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setStatus(val)}
+                    style={{
+                      padding: "0.625rem 0.75rem",
+                      borderRadius: "0.5rem",
+                      border: isSelected ? `2px solid ${colors.color}` : "2px solid #e2e8f0",
+                      backgroundColor: isSelected ? colors.bg : "#f8fafc",
+                      color: isSelected ? colors.color : "#64748b",
+                      fontWeight: isSelected ? 700 : 500,
+                      fontSize: "0.8125rem",
+                      cursor: "pointer",
+                      transition: "all 150ms ease",
+                      textAlign: "center",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          {/* Nominal & Tanggal (hanya jika Bayar) */}
+          {status === "paid" && (
+            <>
+              <div>
+                <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.375rem" }}>
+                  Nominal <span style={{ color: "#dc2626" }}>*</span>
+                </label>
+                <div style={{ display: "flex", alignItems: "center", border: "1.5px solid #94a3b8", borderRadius: "0.5rem", overflow: "hidden", backgroundColor: "#ffffff" }}>
+                  <span style={{ padding: "0.625rem 0.875rem", backgroundColor: "#f1f5f9", borderRight: "1.5px solid #94a3b8", color: "#475569", fontWeight: 600, fontSize: "0.875rem", flexShrink: 0 }}>Rp</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    style={{ flex: 1, border: "none", outline: "none", padding: "0.625rem 0.75rem", fontSize: "0.9375rem", fontWeight: 600, color: "#0f172a", backgroundColor: "#ffffff" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.375rem" }}>
+                  Tanggal Bayar <span style={{ color: "#dc2626" }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  style={{ width: "100%", padding: "0.625rem 0.75rem", border: "1.5px solid #94a3b8", borderRadius: "0.5rem", fontSize: "0.875rem", color: "#0f172a", backgroundColor: "#ffffff", boxSizing: "border-box" }}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Catatan */}
+          <div>
+            <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.375rem" }}>
+              Catatan <span style={{ color: "#64748b", fontWeight: 400 }}>(opsional)</span>
+            </label>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Catatan tambahan..."
+              maxLength={1000}
+              style={{ width: "100%", padding: "0.625rem 0.75rem", border: "1.5px solid #94a3b8", borderRadius: "0.5rem", fontSize: "0.875rem", color: "#0f172a", backgroundColor: "#ffffff", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "1rem 1.5rem", backgroundColor: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            style={{ padding: "0.625rem 1.25rem", borderRadius: "0.5rem", border: "1.5px solid #cbd5e1", backgroundColor: "#ffffff", color: "#475569", fontWeight: 600, fontSize: "0.875rem", cursor: "pointer" }}
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isPending}
+            style={{ padding: "0.625rem 1.5rem", borderRadius: "0.5rem", border: "none", background: "linear-gradient(135deg, #059669, #047857)", color: "#ffffff", fontWeight: 700, fontSize: "0.875rem", cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.7 : 1, display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
+            {isPending ? (
+              <>
+                <Loader2 style={{ width: "16px", height: "16px" }} />
+                Menyimpan...
+              </>
+            ) : (
+              "Simpan Perubahan"
+            )}
+          </button>
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import { residents } from "@/db/schema";
-import { eq, ilike, and, or, sql, asc } from "drizzle-orm";
+import { eq, ilike, and, or, sql, asc, desc, ne } from "drizzle-orm";
 import { ResidentInput } from "@/lib/validation/resident";
+import { attendances, workSchedules, groups } from "@/db/schema";
 
 export type GetResidentsParams = {
   page?: number;
@@ -139,5 +140,67 @@ export class ResidentService {
 
       return result[0];
     });
+  }
+
+  static async getResidentAttendanceHistory(residentId: string, limit: number = 10) {
+    return await db.select({
+      scheduleId: workSchedules.id,
+      workDate: workSchedules.workDate,
+      status: workSchedules.status,
+      groupName: groups.name,
+      attendanceStatus: attendances.status,
+      paymentAmount: attendances.paymentAmount,
+      notes: attendances.notes,
+    })
+    .from(attendances)
+    .innerJoin(workSchedules, eq(attendances.scheduleId, workSchedules.id))
+    .innerJoin(groups, eq(attendances.groupId, groups.id))
+    .where(eq(attendances.residentId, residentId))
+    .orderBy(desc(workSchedules.workDate))
+    .limit(limit);
+  }
+
+  static async getResidentAttendanceHistoryAll(residentId: string) {
+    return await db.select({
+      scheduleId: workSchedules.id,
+      workDate: workSchedules.workDate,
+      status: workSchedules.status,
+      groupName: groups.name,
+      attendanceStatus: attendances.status,
+      paymentAmount: attendances.paymentAmount,
+      paymentDate: attendances.paymentDate,
+      notes: attendances.notes,
+    })
+    .from(attendances)
+    .innerJoin(workSchedules, eq(attendances.scheduleId, workSchedules.id))
+    .innerJoin(groups, eq(attendances.groupId, groups.id))
+    .where(and(eq(attendances.residentId, residentId), ne(workSchedules.status, 'cancelled')))
+    .orderBy(desc(workSchedules.workDate));
+  }
+
+  static async getResidentAttendanceSummary(residentId: string) {
+    const stats = await db.select({
+      status: attendances.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(attendances)
+    .innerJoin(workSchedules, eq(attendances.scheduleId, workSchedules.id))
+    .where(
+      and(
+        eq(attendances.residentId, residentId),
+        ne(workSchedules.status, 'cancelled')
+      )
+    )
+    .groupBy(attendances.status);
+
+    const summary = { scheduled: 0, present: 0, paid: 0, absent: 0 };
+    for (const stat of stats) {
+      if (stat.status === 'present') summary.present = stat.count;
+      else if (stat.status === 'paid') summary.paid = stat.count;
+      else if (stat.status === 'absent') summary.absent = stat.count;
+      
+      summary.scheduled += stat.count;
+    }
+    return summary;
   }
 }

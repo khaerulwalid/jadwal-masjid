@@ -108,6 +108,16 @@ Preset:
 ## 7. Query Rules
 
 Semua report:
-- schedule cancelled tidak dihitung kecuali user memilih "include cancelled";
+- schedule cancelled tidak dihitung kecuali user memilih "include cancelled" atau filter "cancelled";
 - timezone display Asia/Makassar;
 - date boundary menggunakan `work_date`.
+
+## 8. Implementation Notes (Phase 8)
+
+- **Default Date Range**: Awal bulan berjalan hingga hari ini (Asia/Makassar).
+- **Default Status**: `completed`.
+- **Cancelled Exclusion**: Cancelled secara default dieksklusi dari semua perhitungan metrik/KPI.
+- **Historical Integrity**: Laporan grup menggunakan `group_id` di `attendances` (historical snapshot). Keanggotaan current tidak mempengaruhi history schedule.
+- **Payment Total**: Dihitung dari `payment_amount` snapshot, perubahan `app_settings` tidak mempengaruhi record histori.
+- **Attendance Rate**: `present / (present + paid + absent) * 100%`.
+- **CSV Export**: Dieksekusi via `requireAdmin()`, memproteksi formula injection dengan escaping `'`, file format UTF-8 (dengan BOM) dipisahkan koma.

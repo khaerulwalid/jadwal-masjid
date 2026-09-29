@@ -1,10 +1,10 @@
-import { date, pgTable, text, timestamp, varchar, uuid, check } from "drizzle-orm/pg-core";
+import { date, pgTable, text, timestamp, varchar, uuid, check, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 
 export const workSchedules = pgTable("work_schedules", {
   id: uuid("id").primaryKey().defaultRandom(),
-  workDate: date("work_date", { mode: "string" }).notNull().unique(),
+  workDate: date("work_date", { mode: "string" }).notNull(),
   title: varchar("title", { length: 150 }),
   notes: text("notes"),
   status: varchar("status", { length: 20 }).notNull().default("scheduled"),
@@ -16,5 +16,6 @@ export const workSchedules = pgTable("work_schedules", {
 }, (table) => {
   return {
     statusCheck: check("work_schedules_status_check", sql`${table.status} IN ('scheduled', 'completed', 'cancelled')`),
+    uniqueActiveDate: uniqueIndex("work_schedules_active_date_idx").on(table.workDate).where(sql`${table.status} != 'cancelled'`),
   };
 });

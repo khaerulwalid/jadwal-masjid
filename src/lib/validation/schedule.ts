@@ -25,11 +25,19 @@ export const manualScheduleSchema = baseScheduleSchema.extend({
   advanceRotation: z.boolean().default(false),
 });
 
+export const batchScheduleSchema = baseScheduleSchema.extend({
+  mode: z.literal("batch"),
+  groupsPerDay: z.coerce.number().int().min(1).max(2),
+  startGroupId: z.string().uuid("ID kelompok tidak valid"),
+});
+
 export const scheduleSchema = z.discriminatedUnion("mode", [
   rotationScheduleSchema,
   manualScheduleSchema,
+  batchScheduleSchema,
 ]);
 
 export type RotationScheduleInput = z.infer<typeof rotationScheduleSchema>;
 export type ManualScheduleInput = z.infer<typeof manualScheduleSchema>;
+export type BatchScheduleInput = z.infer<typeof batchScheduleSchema>;
 export type ScheduleInput = z.infer<typeof scheduleSchema>;

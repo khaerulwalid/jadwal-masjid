@@ -1,0 +1,2 @@
+ALTER TABLE "work_schedules" DROP CONSTRAINT "work_schedules_work_date_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "work_schedules_active_date_idx" ON "work_schedules" USING btree ("work_date") WHERE "work_schedules"."status" != 'cancelled';

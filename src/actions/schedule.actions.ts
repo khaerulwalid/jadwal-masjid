@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAdmin, validateSession } from "@/lib/auth/session";
-import { scheduleSchema, ScheduleInput } from "@/lib/validation/schedule";
+import { scheduleSchema, ScheduleInput, BatchScheduleInput } from "@/lib/validation/schedule";
 import { ScheduleService } from "@/services/schedule.service";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -31,6 +31,9 @@ export async function createScheduleAction(
     const groupIds = formData.getAll("groupIds").map((v) => v.toString());
     input.groupIds = groupIds;
     input.advanceRotation = formData.get("advanceRotation") === "on";
+  } else if (mode === "batch") {
+    input.groupsPerDay = parseInt(formData.get("groupsPerDay")?.toString() || "1", 10);
+    input.startGroupId = formData.get("startGroupId")?.toString() || "";
   }
 
   const parsed = scheduleSchema.safeParse(input);
@@ -44,8 +47,14 @@ export async function createScheduleAction(
   }
 
   let newId = "";
+  let message = "";
   try {
-    newId = await ScheduleService.createSchedule(parsed.data as ScheduleInput, session.user.id);
+    if (parsed.data.mode === "batch") {
+      const count = await ScheduleService.createBatchSchedule(parsed.data as BatchScheduleInput, session.user.id);
+      message = `Berhasil membuat ${count} jadwal secara berurutan.`;
+    } else {
+      newId = await ScheduleService.createSchedule(parsed.data as ScheduleInput, session.user.id);
+    }
   } catch (error) {
     return {
       success: false,
@@ -56,6 +65,11 @@ export async function createScheduleAction(
   revalidatePath("/jadwal");
   revalidatePath("/dashboard");
   revalidatePath("/pengaturan/rotasi");
+  
+  if (parsed.data.mode === "batch") {
+    redirect(`/jadwal`);
+  }
+  
   redirect(`/jadwal/${newId}`);
 }
 

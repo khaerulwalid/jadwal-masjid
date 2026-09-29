@@ -144,6 +144,43 @@ export async function assignResidentToGroupAction(
   return { success: true };
 }
 
+export async function bulkAssignResidentsToGroupAction(
+  groupId: string,
+  residentIds: string[]
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  if (residentIds.length === 0) {
+    return { success: false, message: "Pilih minimal 1 anggota." };
+  }
+
+  const errors: string[] = [];
+
+  for (const residentId of residentIds) {
+    try {
+      await GroupService.assignResidentToGroup(groupId, residentId);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : residentId);
+    }
+  }
+
+  revalidatePath("/kelompok");
+  revalidatePath(`/kelompok/${groupId}`);
+  revalidatePath("/masyarakat");
+
+  if (errors.length > 0 && errors.length === residentIds.length) {
+    return { success: false, message: `Gagal menambahkan semua anggota: ${errors[0]}` };
+  }
+
+  return {
+    success: true,
+    message: errors.length > 0
+      ? `${residentIds.length - errors.length} berhasil ditambahkan, ${errors.length} gagal.`
+      : undefined,
+  };
+}
+
+
 export async function moveResidentToGroupAction(
   residentId: string,
   targetGroupId: string,

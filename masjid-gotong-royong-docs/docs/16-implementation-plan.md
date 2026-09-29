@@ -133,23 +133,23 @@ Exit:
 
 ---
 
-## Phase 8 — Dashboard
+## Phase 8 — Dashboard (COMPLETED)
 
-- [ ] today schedule
-- [ ] counts
-- [ ] next group
-- [ ] pause state
-- [ ] shortcuts
+- [x] today schedule
+- [x] counts
+- [x] next group
+- [x] pause state
+- [x] shortcuts
 
 ---
 
-## Phase 9 — Reports
+## Phase 9 — Reports (COMPLETED)
 
-- [ ] period summary
-- [ ] resident report
-- [ ] group report
-- [ ] payment report
-- [ ] optional CSV
+- [x] period summary
+- [x] resident report
+- [x] group report
+- [x] payment report
+- [x] optional CSV
 
 ---
 

@@ -12,7 +12,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="app-shell min-h-screen flex flex-col">
-      <nav className="app-nav sticky top-0 z-10 border-b">
+      <nav className="app-nav sticky top-0 z-10 border-b print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -49,6 +49,12 @@ export default async function DashboardLayout({
                   className="border-transparent text-slate-600 hover:border-amber-300 hover:text-emerald-800 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-semibold"
                 >
                   Jadwal
+                </Link>
+                <Link
+                  href="/laporan"
+                  className="border-transparent text-slate-600 hover:border-amber-300 hover:text-emerald-800 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-semibold"
+                >
+                  Laporan
                 </Link>
                 <Link
                   href="/pengaturan/rotasi"
@@ -98,6 +104,12 @@ export default async function DashboardLayout({
               className="border-transparent text-slate-600 hover:bg-emerald-50 hover:border-amber-300 hover:text-emerald-800 block pl-3 pr-4 py-2 border-l-4 text-base font-semibold"
             >
               Jadwal
+            </Link>
+            <Link
+              href="/laporan"
+              className="border-transparent text-slate-600 hover:bg-emerald-50 hover:border-amber-300 hover:text-emerald-800 block pl-3 pr-4 py-2 border-l-4 text-base font-semibold"
+            >
+              Laporan
             </Link>
             <Link
               href="/pengaturan/rotasi"

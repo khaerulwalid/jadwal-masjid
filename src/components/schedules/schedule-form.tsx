@@ -6,6 +6,7 @@ import { createScheduleAction } from "@/actions/schedule.actions";
 import Link from "next/link";
 import RotationScheduleSelector from "./rotation-schedule-selector";
 import ManualGroupSelector from "./manual-group-selector";
+import BatchGroupSelector from "./batch-group-selector";
 import { RotationGroup } from "@/lib/rotation";
 import { getCurrentLocalDate } from "@/lib/date";
 
@@ -33,7 +34,7 @@ export default function ScheduleForm({
   isPaused: boolean;
 }) {
   const [state, action] = useActionState(createScheduleAction, null);
-  const [mode, setMode] = useState<"rotation" | "manual">(isPaused || !nextGroup ? "manual" : "rotation");
+  const [mode, setMode] = useState<"rotation" | "manual" | "batch">("batch");
   
   const todayDate = getCurrentLocalDate().split('T')[0];
 
@@ -67,8 +68,20 @@ export default function ScheduleForm({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Mode Penjadwalan <span className="text-red-500">*</span>
           </label>
-          <div className="flex space-x-4 mt-2">
+          <div className="flex flex-col space-y-2 mt-2">
             <label className="flex items-center">
+              <input
+                type="radio"
+                name="mode"
+                value="batch"
+                checked={mode === "batch"}
+                onChange={() => setMode("batch")}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+              />
+              <span className="ml-2 text-sm text-gray-900">Mode Generate Otomatis (Batch)</span>
+            </label>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
               <input
                 type="radio"
                 name="mode"
@@ -91,6 +104,7 @@ export default function ScheduleForm({
               />
               <span className="ml-2 text-sm text-gray-900">Mode Manual</span>
             </label>
+            </div>
           </div>
           {(isPaused || !nextGroup) && (
             <p className="mt-1 text-xs text-yellow-600">
@@ -101,7 +115,9 @@ export default function ScheduleForm({
       </div>
 
       <div className="border-t border-gray-200 pt-6">
-        {mode === "rotation" ? (
+        {mode === "batch" ? (
+          <BatchGroupSelector activeGroups={activeGroups} />
+        ) : mode === "rotation" ? (
           <RotationScheduleSelector activeGroups={activeGroups} nextGroup={nextGroup} />
         ) : (
           <ManualGroupSelector activeGroups={activeGroups} />

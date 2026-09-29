@@ -8,7 +8,7 @@ if (!env.DATABASE_URL) {
 }
 
 const client = postgres(env.DATABASE_URL, {
-  max: 1,
+  max: process.env.NODE_ENV === "production" ? 10 : 5,
   prepare: false,
   ssl: "require",
 });

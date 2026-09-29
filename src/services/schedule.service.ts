@@ -8,8 +8,8 @@ import {
   residents,
   rotationState,
 } from "@/db/schema";
-import { eq, and, sql, isNull, inArray, desc } from "drizzle-orm";
-import { ScheduleInput } from "@/lib/validation/schedule";
+import { eq, and, ne, sql, isNull, inArray, desc, gte, lte } from "drizzle-orm";
+import { ScheduleInput, BatchScheduleInput } from "@/lib/validation/schedule";
 
 import { getNextActiveGroup, getNextGroups } from "@/lib/rotation";
 import { getCurrentLocalDate } from "@/lib/date";
@@ -116,7 +116,12 @@ export class ScheduleService {
     const existingSchedule = await db
       .select({ id: workSchedules.id })
       .from(workSchedules)
-      .where(eq(workSchedules.workDate, input.workDate))
+      .where(
+        and(
+          eq(workSchedules.workDate, input.workDate),
+          ne(workSchedules.status, "cancelled")
+        )
+      )
       .limit(1);
 
     if (existingSchedule.length > 0) {
@@ -185,7 +190,7 @@ export class ScheduleService {
         const lastGroupId = selectedGroupIds[selectedGroupIds.length - 1];
         const nextGroup = getNextActiveGroup(lastGroupId, activeGroups);
         newNextGroupId = nextGroup.id;
-      } else {
+      } else if (input.mode === "manual") {
         // Manual mode
         selectedGroupIds = input.groupIds;
         
@@ -203,6 +208,8 @@ export class ScheduleService {
           const nextGroup = getNextActiveGroup(lastGroupId, activeGroups);
           newNextGroupId = nextGroup.id;
         }
+      } else {
+        throw new Error("Mode tidak didukung di createSchedule.");
       }
 
       // 8. INSERT work_schedule
@@ -270,6 +277,149 @@ export class ScheduleService {
     });
   }
 
+  static async createBatchSchedule(input: BatchScheduleInput, adminId: string) {
+    return await db.transaction(async (tx) => {
+      // 1. Load active groups
+      const activeGroups = await tx
+        .select({
+          id: groups.id,
+          name: groups.name,
+          sequenceNo: groups.sequenceNo,
+        })
+        .from(groups)
+        .where(eq(groups.isActive, true))
+        .orderBy(groups.sequenceNo);
+
+      if (activeGroups.length === 0) {
+        throw new Error("Tidak ada kelompok aktif.");
+      }
+
+      // Check if startGroupId is valid
+      const startIndex = activeGroups.findIndex((g) => g.id === input.startGroupId);
+      if (startIndex === -1) {
+        throw new Error("Kelompok awal tidak valid atau tidak aktif.");
+      }
+
+      // Determine rotation state to lock it (prevent concurrent changes)
+      await tx
+        .select()
+        .from(rotationState)
+        .where(eq(rotationState.id, 1))
+        .for("update")
+        .limit(1);
+
+      // Generate sequence of days until all groups are scheduled
+      const unassignedGroups = new Set(activeGroups.map(g => g.id));
+      let currentIdx = startIndex;
+      
+      // We must avoid timezone shifting issues. If input.workDate is "2026-09-30", we create date at 12:00.
+      const currentDate = new Date(input.workDate + "T12:00:00Z");
+      
+      let createdCount = 0;
+      let lastGroupId: string | null = null;
+      
+      while (unassignedGroups.size > 0) {
+        const dailyGroups: string[] = [];
+        for (let i = 0; i < input.groupsPerDay; i++) {
+          const group = activeGroups[currentIdx];
+          dailyGroups.push(group.id);
+          unassignedGroups.delete(group.id);
+          
+          currentIdx = (currentIdx + 1) % activeGroups.length;
+          lastGroupId = group.id;
+          
+          if (unassignedGroups.size === 0) break;
+        }
+        
+        const workDateStr = currentDate.toISOString().split('T')[0];
+        
+        // Check if date already exists
+        const existingSchedule = await tx
+          .select({ id: workSchedules.id })
+          .from(workSchedules)
+          .where(
+            and(
+              eq(workSchedules.workDate, workDateStr),
+              ne(workSchedules.status, "cancelled")
+            )
+          )
+          .limit(1);
+
+        if (existingSchedule.length > 0) {
+          throw new Error(`Tanggal ${workDateStr} sudah memiliki jadwal. Harap batalkan atau selesaikan terlebih dahulu.`);
+        }
+        
+        // Insert schedule
+        const newSchedule = await tx
+          .insert(workSchedules)
+          .values({
+            workDate: workDateStr,
+            title: input.title || null,
+            notes: input.notes || null,
+            status: "scheduled",
+            createdBy: adminId,
+          })
+          .returning({ id: workSchedules.id });
+          
+        if (newSchedule.length > 0) {
+          const scheduleId = newSchedule[0].id;
+          
+          // Insert scheduleGroups
+          const scheduleGroupValues = dailyGroups.map((groupId, index) => ({
+            scheduleId,
+            groupId,
+            orderNo: index + 1,
+          }));
+          await tx.insert(scheduleGroups).values(scheduleGroupValues);
+          
+          // Snapshot active members
+          const activeMembers = await tx
+            .select({
+              residentId: groupMembers.residentId,
+              groupId: groupMembers.groupId,
+            })
+            .from(groupMembers)
+            .innerJoin(residents, eq(residents.id, groupMembers.residentId))
+            .where(
+              and(
+                inArray(groupMembers.groupId, dailyGroups),
+                isNull(groupMembers.leftAt),
+                eq(residents.isActive, true)
+              )
+            );
+
+          if (activeMembers.length > 0) {
+            const attendanceValues = activeMembers.map((m) => ({
+              scheduleId,
+              residentId: m.residentId,
+              groupId: m.groupId,
+              status: "pending",
+            }));
+            await tx.insert(attendances).values(attendanceValues);
+          }
+          
+          createdCount++;
+        }
+        
+        // Advance 1 day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      if (lastGroupId) {
+         const nextGroup = getNextActiveGroup(lastGroupId, activeGroups);
+         await tx
+           .update(rotationState)
+           .set({
+             nextGroupId: nextGroup.id,
+             updatedAt: new Date().toISOString(),
+           })
+           .where(eq(rotationState.id, 1));
+      }
+      
+      return createdCount;
+    });
+  }
+
   static async cancelSchedule(scheduleId: string) {
     return await db.transaction(async (tx) => {
       const existing = await tx
@@ -295,6 +445,62 @@ export class ScheduleService {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(workSchedules.id, scheduleId));
+    });
+  }
+
+  static async getPrintSchedules(startDate: string, endDate: string) {
+    const schedules = await db
+      .select({
+        id: workSchedules.id,
+        workDate: workSchedules.workDate,
+        title: workSchedules.title,
+        status: workSchedules.status,
+      })
+      .from(workSchedules)
+      .where(
+        and(
+          gte(workSchedules.workDate, startDate),
+          lte(workSchedules.workDate, endDate),
+          ne(workSchedules.status, 'cancelled')
+        )
+      )
+      .orderBy(workSchedules.workDate);
+
+    if (schedules.length === 0) return [];
+
+    const scheduleIds = schedules.map(s => s.id);
+
+    const scheduledGroups = await db
+      .select({
+        scheduleId: scheduleGroups.scheduleId,
+        id: groups.id,
+        name: groups.name,
+      })
+      .from(scheduleGroups)
+      .innerJoin(groups, eq(groups.id, scheduleGroups.groupId))
+      .where(inArray(scheduleGroups.scheduleId, scheduleIds))
+      .orderBy(scheduleGroups.orderNo);
+
+    const participants = await db
+      .select({
+        scheduleId: attendances.scheduleId,
+        residentName: residents.name,
+        groupName: groups.name,
+      })
+      .from(attendances)
+      .innerJoin(residents, eq(residents.id, attendances.residentId))
+      .innerJoin(groups, eq(groups.id, attendances.groupId))
+      .where(inArray(attendances.scheduleId, scheduleIds))
+      .orderBy(residents.name);
+
+    return schedules.map(schedule => {
+      const sGroups = scheduledGroups.filter(g => g.scheduleId === schedule.id);
+      const sParticipants = participants.filter(p => p.scheduleId === schedule.id);
+      return {
+        ...schedule,
+        groups: sGroups,
+        participants: sParticipants,
+      };
     });
   }
 }
